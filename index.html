@@ -385,9 +385,8 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
   .app-title{font-size:20px;letter-spacing:0;font-weight:700}
 }
 
-/* Separación visual y tipográfica de la información frente al diagrama */
-.compat-note{background:#fff!important;color:#000!important;-webkit-text-fill-color:#000!important;border:1px solid #d9dfe4!important;border-radius:10px;padding:11px 12px;line-height:1.4}
-.compat-note *{color:#000!important;-webkit-text-fill-color:#000!important}
+.compat-note{background:#fff!important;color:#000!important;-webkit-text-fill-color:#000!important;border:1px solid #d7dde2!important;border-radius:10px;padding:11px 12px;line-height:1.4}
+.compat-note *{color:#000!important;-webkit-text-fill-color:#000!important;opacity:1!important}
 </style>
 </head>
 <body>
@@ -666,30 +665,30 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
     if(!lastBloques.length){mostrarError('Primero realiza un cálculo válido.');return null;}
 
     const PT=72/2.54;
-    const headerCm=3.55;
-    const gapCm=0.75;
-    const pageW=pAncho*PT;
-    const pliegoH=pAlto*PT;
-    const gap=gapCm*PT;
-    const headerH=headerCm*PT;
-    const pageH=headerH+gap+pliegoH;
+    const margenX=0.8*PT;
+    const headerH=3.6*PT;
+    const gap=0.9*PT;
+    const pageW=pAncho*PT + margenX*2;
+    const pageH=headerH + gap + pAlto*PT;
     const esc=v=>Number(v.toFixed(3));
 
     const cmds=[
       'q',
       '1 1 1 rg',
       `0 0 ${esc(pageW)} ${esc(pageH)} re f`,
-      '0.85 0.87 0.89 RG 0.5 w',
-      `0 ${esc(pliegoH+gap)} m ${esc(pageW)} ${esc(pliegoH+gap)} l S`
+      '0.88 0.89 0.90 RG 0.5 w',
+      `0 ${esc(pAlto*PT+gap)} m ${esc(pageW)} ${esc(pAlto*PT+gap)} l S`
     ];
 
-    // El montaje ocupa exactamente pAncho x pAlto cm.
-    // Se desplaza hacia abajo para dejar una separación física entre datos y pliego.
+    // El pliego queda centrado horizontalmente y mantiene pAncho x pAlto cm reales.
+    const ox=margenX;
+    const oy=0;
+
     for(const b of lastBloques){
       const pw=b.pieceW*PT, ph=b.pieceH*PT;
       for(let i=0;i<b.cols;i++)for(let j=0;j<b.rows;j++){
-        const x=(b.x+i*b.pieceW)*PT;
-        const y=headerH+gap+(b.y+j*b.pieceH)*PT;
+        const x=ox+(b.x+i*b.pieceW)*PT;
+        const y=oy+(b.y+j*b.pieceH)*PT;
         cmds.push(
           '0.82 0.88 0.08 rg',
           '0.114 0.114 0.106 RG 0.5 w',
@@ -698,22 +697,20 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
       }
     }
 
-    // Texto negro, arriba y completamente separado del montaje.
+    // Información: siempre negra y completamente dentro del encabezado blanco.
     const lines=datosCompartir().split('\n');
-    const textCmds=[
-      'BT',
-      '0 0 0 rg',
-      '/F1 17 Tf',
-      esc(0.8*PT)+' '+esc((pageH-0.82*PT))+' Td',
+    const text=[];
+    text.push('BT','0 0 0 rg','/F1 17 Tf',
+      esc(margenX)+' '+esc(pageH-0.75*PT)+' Td',
       '('+pdfWinAnsi(lines[0])+') Tj',
-      '/F1 10 Tf'
-    ];
+      '/F1 10.5 Tf'
+    );
     for(let i=1;i<lines.length;i++){
-      textCmds.push('0 -'+esc(0.43*PT)+' Td','0 0 0 rg','('+pdfWinAnsi(lines[i])+') Tj');
+      text.push('0 -'+esc(0.43*PT)+' Td','0 0 0 rg','('+pdfWinAnsi(lines[i])+') Tj');
     }
-    textCmds.push('ET');
-    const content=cmds.concat(textCmds).join('\n')+'\n';
+    text.push('ET');
 
+    const content=cmds.concat(text).join('\n')+'\n';
     return buildPdf([
       {n:1,content:'<< /Type /Catalog /Pages 2 0 R >>'},
       {n:2,content:'<< /Type /Pages /Kids [3 0 R] /Count 1 >>'},
@@ -722,15 +719,21 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
       {n:5,content:'<< /Length '+bytesLatin1(content).length+' >>\nstream\n'+content+'endstream'}
     ]);
   }
-  async function blobToUrlDownload(blob,filename){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
+async function blobToUrlDownload(blob,filename){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
   function crearJpgBlob(){
     return new Promise(resolve=>{
       const srcW=Math.max(1,canvas.width||Math.round((canvas.clientWidth||900)*2));
       const srcH=Math.max(1,canvas.height||Math.round((canvas.clientHeight||360)*2));
       const aspect=srcW/srcH||1;
-      const maxW=1600, dw=Math.min(maxW,Math.max(900,srcW));
+
+      const maxW=1600;
+      const dw=Math.min(maxW,Math.max(900,srcW));
       const dh=Math.max(1,Math.round(dw/aspect));
-      const pad=48, infoH=215, gap=24;
+
+      const pad=48;
+      const infoH=215;
+      const gap=30;
+
       const out=document.createElement('canvas');
       out.width=dw+pad*2;
       out.height=infoH+gap+dh+pad*2;
@@ -752,7 +755,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
       c.lineWidth=2;
       c.strokeRect(pad,infoH+gap,dw,dh);
 
-      // Mantener exactamente la proporción del canvas.
+      // Copia proporcional exacta del Canvas: nunca se aplasta.
       c.drawImage(canvas,0,0,srcW,srcH,pad,infoH+gap,dw,dh);
 
       out.toBlob(resolve,'image/jpeg',0.94);
