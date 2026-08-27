@@ -384,6 +384,10 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
   .brand-logo{width:42px;height:42px}
   .app-title{font-size:20px;letter-spacing:0;font-weight:700}
 }
+
+/* Separación visual y tipográfica de la información frente al diagrama */
+.compat-note{background:#fff!important;color:#000!important;-webkit-text-fill-color:#000!important;border:1px solid #d9dfe4!important;border-radius:10px;padding:11px 12px;line-height:1.4}
+.compat-note *{color:#000!important;-webkit-text-fill-color:#000!important}
 </style>
 </head>
 <body>
@@ -662,28 +666,30 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
     if(!lastBloques.length){mostrarError('Primero realiza un cálculo válido.');return null;}
 
     const PT=72/2.54;
-    const gapCm=2.4, infoH=gapCm*PT;
-    const pageW=pAncho*PT, pageH=pAlto*PT+infoH;
+    const headerCm=3.55;
+    const gapCm=0.75;
+    const pageW=pAncho*PT;
+    const pliegoH=pAlto*PT;
+    const gap=gapCm*PT;
+    const headerH=headerCm*PT;
+    const pageH=headerH+gap+pliegoH;
     const esc=v=>Number(v.toFixed(3));
 
-    // Encabezado: información del cálculo. El pliego, abajo, conserva sus dimensiones 1:1.
     const cmds=[
       'q',
       '1 1 1 rg',
       `0 0 ${esc(pageW)} ${esc(pageH)} re f`,
-      '0.114 0.114 0.106 RG 0.7 w',
-      `0 0 ${esc(pageW)} ${esc(pageH)} re S`
+      '0.85 0.87 0.89 RG 0.5 w',
+      `0 ${esc(pliegoH+gap)} m ${esc(pageW)} ${esc(pliegoH+gap)} l S`
     ];
 
-    // Línea divisoria bajo la información.
-    cmds.push('0.78 0.80 0.82 RG 0.5 w',`0 ${esc(pAlto*PT)} m ${esc(pageW)} ${esc(pAlto*PT)} l S`);
-
-    // Pliego: origen PDF abajo a la izquierda, por lo que se dibuja sin escalado adicional.
+    // El montaje ocupa exactamente pAncho x pAlto cm.
+    // Se desplaza hacia abajo para dejar una separación física entre datos y pliego.
     for(const b of lastBloques){
       const pw=b.pieceW*PT, ph=b.pieceH*PT;
       for(let i=0;i<b.cols;i++)for(let j=0;j<b.rows;j++){
         const x=(b.x+i*b.pieceW)*PT;
-        const y=(b.y+j*b.pieceH)*PT;
+        const y=headerH+gap+(b.y+j*b.pieceH)*PT;
         cmds.push(
           '0.82 0.88 0.08 rg',
           '0.114 0.114 0.106 RG 0.5 w',
@@ -692,27 +698,28 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
       }
     }
 
-    // Texto del encabezado: se ubica por encima del pliego.
+    // Texto negro, arriba y completamente separado del montaje.
     const lines=datosCompartir().split('\n');
-    const textCmds=['BT','/F1 17 Tf',esc(12*PT)+' '+esc((pAlto+1.7)*PT)+' Td'];
-    lines.forEach((lineText,i)=>{
-      if(i===0){
-        textCmds.push('('+pdfWinAnsi(lineText)+') Tj');
-        textCmds.push('/F1 10 Tf');
-      }else{
-        textCmds.push('0 -'+esc(0.34*PT)+' Td','('+pdfWinAnsi(lineText)+') Tj');
-      }
-    });
+    const textCmds=[
+      'BT',
+      '0 0 0 rg',
+      '/F1 17 Tf',
+      esc(0.8*PT)+' '+esc((pageH-0.82*PT))+' Td',
+      '('+pdfWinAnsi(lines[0])+') Tj',
+      '/F1 10 Tf'
+    ];
+    for(let i=1;i<lines.length;i++){
+      textCmds.push('0 -'+esc(0.43*PT)+' Td','0 0 0 rg','('+pdfWinAnsi(lines[i])+') Tj');
+    }
     textCmds.push('ET');
-
-    const page1Content=cmds.concat(textCmds).join('\n')+'\n';
+    const content=cmds.concat(textCmds).join('\n')+'\n';
 
     return buildPdf([
       {n:1,content:'<< /Type /Catalog /Pages 2 0 R >>'},
       {n:2,content:'<< /Type /Pages /Kids [3 0 R] /Count 1 >>'},
       {n:3,content:'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+esc(pageW)+' '+esc(pageH)+'] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>'},
       {n:4,content:'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'},
-      {n:5,content:'<< /Length '+bytesLatin1(page1Content).length+' >>\nstream\n'+page1Content+'endstream'}
+      {n:5,content:'<< /Length '+bytesLatin1(content).length+' >>\nstream\n'+content+'endstream'}
     ]);
   }
   async function blobToUrlDownload(blob,filename){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
@@ -723,18 +730,31 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
       const aspect=srcW/srcH||1;
       const maxW=1600, dw=Math.min(maxW,Math.max(900,srcW));
       const dh=Math.max(1,Math.round(dw/aspect));
-      const pad=48, infoH=215;
+      const pad=48, infoH=215, gap=24;
       const out=document.createElement('canvas');
-      out.width=dw+pad*2; out.height=infoH+dh+pad*2;
+      out.width=dw+pad*2;
+      out.height=infoH+gap+dh+pad*2;
+
       const c=out.getContext('2d');
-      c.fillStyle='#ffffff';c.fillRect(0,0,out.width,out.height);
-      c.fillStyle='#1d1d1b';c.font='800 34px Arial,Helvetica,sans-serif';
+      c.fillStyle='#ffffff';
+      c.fillRect(0,0,out.width,out.height);
+
+      c.fillStyle='#000000';
+      c.font='800 34px Arial,Helvetica,sans-serif';
       c.fillText('Calculadora de Cortes',pad,48);
+
       c.font='700 20px Arial,Helvetica,sans-serif';
-      datosCompartir().split('\n').forEach((lineText,i)=>c.fillText(lineText,pad,86+i*26));
-      c.strokeStyle='#d7dde5';c.lineWidth=2;c.strokeRect(pad,infoH,dw,dh);
-      // Copia exacta del canvas, manteniendo la proporción srcW/srcH.
-      c.drawImage(canvas,0,0,srcW,srcH,pad,infoH,dw,dh);
+      datosCompartir().split('\n').forEach((lineText,i)=>{
+        c.fillText(lineText,pad,86+i*26);
+      });
+
+      c.strokeStyle='#d7dde5';
+      c.lineWidth=2;
+      c.strokeRect(pad,infoH+gap,dw,dh);
+
+      // Mantener exactamente la proporción del canvas.
+      c.drawImage(canvas,0,0,srcW,srcH,pad,infoH+gap,dw,dh);
+
       out.toBlob(resolve,'image/jpeg',0.94);
     });
   }
