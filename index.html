@@ -798,13 +798,27 @@ function abrirCompartir(){if(!lastBloques.length){mostrarError('Primero realiza 
     const m=$('modalNombreDescarga');
     m.classList.remove('open'); m.setAttribute('aria-hidden','true');
   }
+  function formatoEntero(valor){
+    const n=Number.isFinite(valor)?Math.max(0,Math.round(valor)):0;
+    return n.toLocaleString('es-CO');
+  }
   function datosCompartir(){
-    const req=parseInt($('piezasRequeridas').value,10);
-    let texto=`Calculadora de Cortes\nPliego: ${formatDecimal(pAncho)} x ${formatDecimal(pAlto)} cm\nCorte: ${formatDecimal(cAncho)} x ${formatDecimal(cAlto)} cm\nTamaños por pliego: ${globalTotalPiezas}\nDesperdicio: ${$('resultadoDesperdicio').textContent}`;
-    texto+=`\nPliegos requeridos: ${$('resultadoPliegos').textContent}`;
+    const reqRaw=parseInt($('piezasRequeridas').value,10);
+    const req=Number.isFinite(reqRaw)?Math.max(0,reqRaw):0;
+    const pliegosTexto=$('resultadoPliegos').textContent.trim();
+    const pliegosNum=parseInt(pliegosTexto.replace(/[^\d]/g,''),10)||0;
+    const totalCortes=pliegosNum>0 ? pliegosNum*globalTotalPiezas : 0;
+    let texto=`Calculadora de Cortes
+Pliego: ${formatDecimal(pAncho)} x ${formatDecimal(pAlto)} cm
+Corte: ${formatDecimal(cAncho)} x ${formatDecimal(cAlto)} cm
+Cantidad cortes requeridos: ${formatoEntero(req)}
+Tamaños por pliego: ${formatoEntero(globalTotalPiezas)}
+Desperdicio: ${$('resultadoDesperdicio').textContent}
+Pliegos requeridos: ${formatoEntero(pliegosNum)}
+# de Cortes Totales: ${formatoEntero(totalCortes)}`;
     return texto;
   }
-  async function compartirResultado(ruta='native'){
+async function compartirResultado(ruta='native'){
     if(!lastBloques.length){mostrarError('Primero realiza un cálculo válido.');return;}
     const formato=document.querySelector('input[name="formatoShare"]:checked').value, base=nombreBase();
     const pdf=(formato==='pdf'||formato==='ambos')?crearPDFVectorial():null;
